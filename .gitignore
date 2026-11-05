@@ -1,0 +1,17 @@
+# Datos generados: se reproducen con el código y la semilla, no se versionan
+data/
+*.csv
+_resumen.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Credenciales y entorno
+.env
+.databrickscfg
+
+# Databricks Asset Bundles
+.databricks/

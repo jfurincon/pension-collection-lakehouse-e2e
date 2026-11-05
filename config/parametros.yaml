@@ -1,0 +1,163 @@
+# =============================================================================
+# Parámetros del generador de datos sintéticos — Recaudo y cartera de pensiones
+# -----------------------------------------------------------------------------
+# Todo lo que cambia el comportamiento de los datos vive aquí, no en el código.
+# Cambiar un valor + misma semilla = dataset distinto pero reproducible.
+# Las cifras normativas (SMMLV, FSP, fechas PILA) son aproximadas: verifícalas.
+# =============================================================================
+
+semilla: 42
+
+# Multiplica el tamaño de la población. 0.1 = 1.000 aportantes (para iterar
+# rápido); 1.0 = tamaño completo (10.000 aportantes, ~100.000 cotizantes).
+escala: 1.0
+
+fechas:
+  inicio: "2023-01"          # primer periodo publicado
+  fin: "2025-12"             # último periodo publicado
+  corte: "2025-12-31"        # fecha de corte de los datos (nada ocurre después)
+  meses_calentamiento: 12    # meses simulados antes de 'inicio' para que la cartera
+                             # arranque "en régimen" y no en cero (cartera heredada)
+
+poblacion:
+  n_aportantes: 10000
+  n_cotizantes_objetivo: 108000   # puestos de trabajo; ~100.000 activos por mes tras vacantes y cierres
+
+# Tamaño de empresa: % de empresas y rango de cotizantes por empresa.
+tamanos:
+  Micro:   {peso: 0.75, min: 1,   max: 10,   factor_riesgo: 1.15, factor_salario: 0.0}
+  Pequeña: {peso: 0.18, min: 11,  max: 30,   factor_riesgo: 1.00, factor_salario: 0.05}
+  Mediana: {peso: 0.06, min: 31,  max: 100,  factor_riesgo: 0.80, factor_salario: 0.10}
+  Grande:  {peso: 0.01, min: 101, max: 3000, factor_riesgo: 0.60, factor_salario: 0.15}
+
+# Sector económico: peso en la población y riesgo base mensual de incumplir.
+# Construcción y transporte tienen ~2x el riesgo del resto (meta #2).
+sectores:
+  Comercio:     {peso: 0.25, riesgo_base: 0.075}
+  Servicios:    {peso: 0.22, riesgo_base: 0.070}
+  Industria:    {peso: 0.12, riesgo_base: 0.070}
+  Construcción: {peso: 0.10, riesgo_base: 0.160}
+  Transporte:   {peso: 0.08, riesgo_base: 0.160}
+  Agro:         {peso: 0.06, riesgo_base: 0.085}
+  Salud:        {peso: 0.06, riesgo_base: 0.060}
+  Educación:    {peso: 0.05, riesgo_base: 0.055}
+  Tecnología:   {peso: 0.06, riesgo_base: 0.055}
+
+# Antigüedad del aportante (años desde la afiliación) -> multiplicador de riesgo.
+# Se evalúa en cada periodo, así que una empresa "envejece" durante la simulación.
+antiguedad_factor:
+  - {hasta_anios: 2,   factor: 2.20}
+  - {hasta_anios: 5,   factor: 1.25}
+  - {hasta_anios: 10,  factor: 0.95}
+  - {hasta_anios: 999, factor: 0.35}
+
+afiliacion:
+  desde: "1995-01-01"
+  mediana_anios: 9           # antigüedad mediana al 2023-01-01 (sesgo a fechas recientes)
+  pct_nuevas_en_ventana: 0.10  # % de empresas que se afilian entre 2023 y 2025
+
+ruido_riesgo_sigma: 0.80     # dispersión lognormal del riesgo entre empresas parecidas
+
+# --- Subsistema de pensión ---------------------------------------------------
+pension:
+  tarifa: 0.16
+  ibc_min_smmlv: 1
+  ibc_max_smmlv: 25
+  smmlv:
+    2022: 1000000
+    2023: 1160000
+    2024: 1300000
+    2025: 1423500
+  # Fondo de Solidaridad Pensional: % adicional según IBC en SMMLV
+  fsp:
+    - {desde: 4,  pct: 0.010}
+    - {desde: 16, pct: 0.012}
+    - {desde: 17, pct: 0.014}
+    - {desde: 18, pct: 0.016}
+    - {desde: 19, pct: 0.018}
+    - {desde: 20, pct: 0.020}
+
+mora:
+  tasa_efectiva_anual: 0.25  # tasa por defecto, fija (simplificación)
+
+# --- Cotizantes ---------------------------------------------------------------
+cotizantes:
+  edad_media: 38
+  edad_desv: 11
+  pct_genero_m: 0.55
+  tipo_documento: {CC: 0.95, CE: 0.04, PPT: 0.01}
+  tipo_cotizante: {Dependiente: 0.92, Independiente con contrato: 0.05, Servicio doméstico: 0.03}
+  # Salario como múltiplo del SMMLV (meta #11: 55% entre 1 y 1,5; ~3% > 10)
+  salario:
+    pct_minimo_exacto: 0.30
+    pct_hasta_1_5: 0.25
+    cola_mu: 0.75            # log-media de la cola por encima de 1,5 SMMLV
+    cola_sigma: 0.95
+    max_smmlv: 20
+  rotacion: 0.25             # % de puestos con un retiro y reemplazo en la ventana
+
+eventos_aportante:
+  pct_inactivo: 0.06         # dejan de tener trabajadores (cierre normal)
+  pct_liquidacion: 0.015     # entran en liquidación: casi nunca pagan
+  pct_traslado: 0.03         # cambian de ciudad (versión SCD2)
+
+# --- Comportamiento de pago ---------------------------------------------------
+pago:
+  calibracion: 1.08          # multiplicador global del riesgo (perilla para meta #1)
+  odds_con_deuda: 6.0        # mora persistente (meta #7)
+  odds_con_acuerdo: 0.35     # un acuerdo vigente reduce el incumplimiento
+  pct_parcial: 0.40          # de los incumplimientos, % que paga una parte
+  fraccion_parcial: [0.30, 0.90]
+  tardio_base: 0.06          # prob. de pagar completo pero tarde
+  tardio_pendiente: 0.50     # + pendiente x riesgo
+  tardio_dias: {p: [0.60, 0.30, 0.10], rangos: [[1, 5], [6, 20], [21, 60]]}
+  cura_completa: 0.30        # prob. mensual base de ponerse al día (sin acuerdo)
+  cura_parcial: 0.15         # prob. mensual de pagar el periodo más antiguo
+  cura_boost_gestion: 1.6    # multiplicador si hubo gestión exitosa en el mes
+  prob_liquidacion_impago: 0.95
+  canal_pila: {Operador PILA: 0.70, Botón PSE: 0.25, Banco: 0.05}
+  canal_abono: {Botón PSE: 0.50, Banco: 0.50}
+
+# --- Cobranza -----------------------------------------------------------------
+cobranza:
+  n_gestores: 40
+  # gestiones promedio por mes según el tramo al cierre del mes anterior (meta #9)
+  lambda_tramo: {"1-30": 1.0, "31-60": 2.0, "61-90": 3.0, ">90": 4.0}
+  mezcla_tipo:
+    "1-30":  {Llamada: 0.70, Correo: 0.30, Visita: 0.00, AcuerdoPago: 0.00}
+    "31-60": {Llamada: 0.50, Correo: 0.25, Visita: 0.10, AcuerdoPago: 0.15}
+    "61-90": {Llamada: 0.40, Correo: 0.20, Visita: 0.20, AcuerdoPago: 0.20}
+    ">90":   {Llamada: 0.35, Correo: 0.15, Visita: 0.25, AcuerdoPago: 0.25}
+  # probabilidad de cada resultado por tipo (Exitosa se ajusta por riesgo)
+  resultados:
+    Llamada:     {Exitosa: 0.35, Sin Contacto: 0.35, Rechazada: 0.10, Pendiente: 0.20}
+    Correo:      {Exitosa: 0.20, Sin Contacto: 0.45, Rechazada: 0.05, Pendiente: 0.30}
+    Visita:      {Exitosa: 0.50, Sin Contacto: 0.15, Rechazada: 0.15, Pendiente: 0.20}
+    AcuerdoPago: {Exitosa: 0.40, Sin Contacto: 0.10, Rechazada: 0.30, Pendiente: 0.20}
+
+acuerdos:
+  pct_cumplidos: 0.85      # base; las empresas riesgosas cumplen menos (~70% efectivo)
+  cuotas_min: 3
+  cuotas_max: 12
+  pct_cuota_tardia: 0.10
+
+# --- Score de riesgo por reglas (FactRiesgo, ScoreVersion = reglas-v1) --------
+riesgo_reglas:
+  intercepto: -2.6
+  w_dias_por_30: 0.30        # por cada 30 días de mora (tope 180)
+  w_incumplimientos_12m: 0.30
+  w_sector_alto: 0.55        # construcción o transporte
+  w_nueva: 0.45              # < 2 años
+  w_antigua: -0.45           # > 10 años
+  w_micro: 0.25
+  ruido_sigma: 1.10
+  umbrales: {Medio: 0.15, Alto: 0.40, Critico: 0.75}
+
+# --- Errores inyectados a propósito (para que Silver tenga qué limpiar) -------
+errores:
+  dv_invalido: 0.01
+  razon_social_sucia: 0.02
+  cotizante_fk_inexistente: 0.002
+  pagos_duplicados: 0.005
+  pagos_fecha_imposible: 0.003
+  aportes_monto_negativo: 0.002
