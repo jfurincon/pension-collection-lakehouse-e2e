@@ -37,6 +37,23 @@ def silver(tabla):
     return spark.read.table(f"{SILVER}.{tabla}")
 
 
+def tabla_existe(esquema, tabla):
+    """¿Existe la tabla en el catálogo?
+
+    Dentro de una pipeline no se puede usar spark.catalog.tableExists: Databricks
+    bloquea esa API (error PY4J_BLOCKED_API). Se pregunta al information_schema,
+    que es una consulta SQL normal.
+    """
+    return len(spark.sql(f"""
+        SELECT 1 FROM {CATALOGO}.information_schema.tables
+        WHERE table_schema = '{esquema}' AND table_name = '{tabla}'
+    """).take(1)) > 0
+
+
+# Se evalúa una sola vez, al armar el grafo de la pipeline.
+HAY_SCORES_ML = tabla_existe("ml", "score_riesgo")
+
+
 def fecha_key(col):
     """Fecha -> entero yyyymmdd, la llave de dim_tiempo."""
     return F.date_format(col, "yyyyMMdd").cast("int")
@@ -219,9 +236,8 @@ def fact_riesgo():
     columnas = ["AportanteID", "FechaEvaluacion", "ProbabilidadIncumplimiento", "NivelRiesgo", "ScoreVersion"]
     df = silver("riesgo").select(*columnas)
     # Scores del modelo de ML (notebook 06). Si aún no existen, Gold solo trae reglas-v1.
-    tabla_ml = f"{CATALOGO}.ml.score_riesgo"
-    if spark.catalog.tableExists(tabla_ml):
-        df = df.unionByName(spark.read.table(tabla_ml).select(*columnas, "Muestra", "Razones"),
+    if HAY_SCORES_ML:
+        df = df.unionByName(spark.read.table(f"{CATALOGO}.ml.score_riesgo").select(*columnas, "Muestra", "Razones"),
                             allowMissingColumns=True)
     for col, tipo in (("Muestra", "string"), ("Razones", "array<string>")):
         if col not in df.columns:   # reglas-v1 no tiene muestra ni razones
