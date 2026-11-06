@@ -28,7 +28,10 @@ HECHOS = {  # tabla silver -> tabla gold
 filas = []
 for s, g in HECHOS.items():
     ns = spark.table(f"{C}.silver.{s}").count()
-    ng = spark.table(f"{C}.gold.{g}").count()
+    gold = spark.table(f"{C}.gold.{g}")
+    if g == "fact_riesgo":   # también trae los scores ml-v1 del notebook 06: se cuadra solo reglas-v1
+        gold = gold.where("ScoreVersion = 'reglas-v1'")
+    ng = gold.count()
     filas.append((g, ns, ng, "OK" if ns == ng else "REVISAR"))
 display(spark.createDataFrame(filas, "tabla string, filas_silver long, filas_gold long, estado string"))
 

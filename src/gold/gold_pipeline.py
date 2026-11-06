@@ -6,7 +6,7 @@ Lee las tablas limpias de Silver y publica en el esquema gold:
   Hechos        fact_aporte_detalle, fact_aporte, fact_pago, fact_mora,
                 fact_cobranza, fact_acuerdo_cuota, fact_riesgo
   Agregados     agg_recaudo_mensual, agg_cartera_mensual, agg_transicion_tramos,
-                agg_efectividad_cobranza, agg_indicadores_mensuales
+                agg_efectividad_cobranza, agg_indicadores_mensuales, agg_desempeno_score
 
 Decisiones de diseño:
   - Llaves sustitutas (…SK) con xxhash64: deterministas, así una nueva
@@ -27,6 +27,10 @@ from pyspark.sql import Window
 CATALOGO = spark.conf.get("catalogo", "recaudo_dev")
 SILVER = f"{CATALOGO}.silver"
 FIN_CALENDARIO = "2026-12-31"     # cubre los vencimientos de cuotas firmadas a fines de 2025
+
+
+# Todas las razones usan F.try_divide: si el denominador es 0 el resultado es NULL
+# en lugar de un error (Spark con modo ANSI falla al dividir por cero).
 
 
 def silver(tabla):
@@ -208,13 +212,27 @@ def fact_acuerdo_cuota():
 
 
 @dp.materialized_view(name="fact_riesgo", cluster_by=["FechaEvaluacionKey"],
-                      comment="Score de probabilidad de incumplimiento. ScoreVersion distingue reglas y modelos de ML.")
+                      comment=("Scores de probabilidad de incumplimiento por aportante y mes. ScoreVersion: "
+                               "reglas-v1 (reglas del generador, horizonte t+1) y ml-v1 (modelo de ML, mora > 30 "
+                               "días en los próximos 3 meses). Filtra siempre por ScoreVersion."))
 def fact_riesgo():
-    df = con_version_aportante(silver("riesgo"), F.col("FechaEvaluacion"))
+    columnas = ["AportanteID", "FechaEvaluacion", "ProbabilidadIncumplimiento", "NivelRiesgo", "ScoreVersion"]
+    df = silver("riesgo").select(*columnas)
+    # Scores del modelo de ML (notebook 06). Si aún no existen, Gold solo trae reglas-v1.
+    tabla_ml = f"{CATALOGO}.ml.score_riesgo"
+    if spark.catalog.tableExists(tabla_ml):
+        df = df.unionByName(spark.read.table(tabla_ml).select(*columnas, "Muestra", "Razones"),
+                            allowMissingColumns=True)
+    for col, tipo in (("Muestra", "string"), ("Razones", "array<string>")):
+        if col not in df.columns:   # reglas-v1 no tiene muestra ni razones
+            df = df.withColumn(col, F.lit(None).cast(tipo))
+    df = con_version_aportante(df, F.col("FechaEvaluacion"))
     return df.select(
         "AportanteSK", "AportanteID", fecha_key(F.col("FechaEvaluacion")).alias("FechaEvaluacionKey"),
         F.date_format("FechaEvaluacion", "yyyy-MM").alias("Periodo"),
-        "ProbabilidadIncumplimiento", "NivelRiesgo", "ScoreVersion")
+        "ProbabilidadIncumplimiento", "NivelRiesgo", "ScoreVersion",
+        F.col("Muestra").cast("string").alias("Muestra"),
+        F.col("Razones").cast("array<string>").alias("Razones"))
 
 
 # =============================================================================
@@ -236,8 +254,8 @@ def agg_recaudo_mensual():
                  F.sum(F.col("EsOportuno").cast("int")).alias("AportesOportunos"),
                  F.sum(F.col("EsVencido").cast("int")).alias("AportesVencidos"),
                  F.sum("NumeroCotizantes").alias("Cotizantes"))
-            .withColumn("PctCumplimiento", F.col("ValorRecaudado") / F.col("ValorEsperado"))
-            .withColumn("PctOportuno", F.col("AportesOportunos") / F.col("AportesVencidos")))
+            .withColumn("PctCumplimiento", F.try_divide(F.col("ValorRecaudado"), F.col("ValorEsperado")))
+            .withColumn("PctOportuno", F.try_divide(F.col("AportesOportunos"), F.col("AportesVencidos"))))
 
 
 @dp.materialized_view(name="agg_cartera_mensual",
@@ -282,8 +300,8 @@ def agg_efectividad_cobranza():
                  F.sum(F.col("HuboContacto").cast("int")).alias("ConContacto"),
                  F.count("AcuerdoID").alias("AcuerdosFirmados"),
                  F.countDistinct("AportanteID").alias("AportantesGestionados"))
-            .withColumn("TasaExito", F.col("Exitosas") / F.col("Gestiones"))
-            .withColumn("TasaContacto", F.col("ConContacto") / F.col("Gestiones")))
+            .withColumn("TasaExito", F.try_divide(F.col("Exitosas"), F.col("Gestiones")))
+            .withColumn("TasaContacto", F.try_divide(F.col("ConContacto"), F.col("Gestiones"))))
 
 
 @dp.materialized_view(name="agg_indicadores_mensuales",
@@ -308,14 +326,43 @@ def agg_indicadores_mensuales():
     w = Window.orderBy("Periodo")
     w12 = Window.orderBy("Periodo").rowsBetween(-11, 0)
     return (aportes.join(mora, "Periodo", "left").join(recuperado, "Periodo", "left")
-            .withColumn("PctCumplimiento", F.col("ValorRecaudado") / F.col("ValorEsperado"))
+            .withColumn("PctCumplimiento", F.try_divide(F.col("ValorRecaudado"), F.col("ValorEsperado")))
             # Facturación anual: promedio mensual de los últimos 12 meses x 12. Con el
             # promedio, los primeros meses (con menos de 12 de historia) no se inflan.
             .withColumn("Esperado12m", F.avg("ValorEsperado").over(w12) * 12)
             # Índice de cartera vencida: capital vencido sobre la facturación anual.
-            .withColumn("IndiceCarteraVencida", F.col("SaldoCapitalVencido") / F.col("Esperado12m"))
+            .withColumn("IndiceCarteraVencida", F.try_divide(F.col("SaldoCapitalVencido"), F.col("Esperado12m")))
             .withColumn("SaldoCapitalMesAnterior", F.lag("SaldoCapitalVencido").over(w))
             # Tasa de recuperación: lo recuperado en el mes sobre la cartera con la que abrió el mes.
-            .withColumn("TasaRecuperacion", F.col("CapitalRecuperado") / F.col("SaldoCapitalMesAnterior"))
-            .withColumn("PctSaldoMas90", F.col("SaldoMas90") / F.col("SaldoTotalVencido"))
+            .withColumn("TasaRecuperacion", F.try_divide(F.col("CapitalRecuperado"), F.col("SaldoCapitalMesAnterior")))
+            .withColumn("PctSaldoMas90", F.try_divide(F.col("SaldoMas90"), F.col("SaldoTotalVencido")))
             .drop("Esperado12m"))
+
+
+@dp.materialized_view(name="agg_desempeno_score",
+                      comment=("Desempeño de cada versión de score: tasa real de mora > 30 días en los 3 meses "
+                               "siguientes, por periodo y decil de score (1 = más riesgoso)."))
+def agg_desempeno_score():
+    # Resultado observado: ¿tuvo mora > 30 días en algún cierre de los 3 meses siguientes?
+    # Si el aportante no aparece en un mes es porque no tiene deuda (cuenta como 0).
+    mes = F.substring("Periodo", 1, 4).cast("int") * 12 + F.substring("Periodo", 6, 2).cast("int")
+    por_ap = Window.partitionBy("AportanteID").orderBy("Mes")
+    mora = (spark.read.table("fact_mora").select("AportanteID", "Periodo", "DiasMora")
+            .withColumn("Mes", mes)
+            .withColumn("UltimoMes", F.max("Mes").over(Window.partitionBy(F.lit(1)))))
+    futuro = [F.coalesce(((F.lead("Mes", k).over(por_ap) <= F.col("Mes") + 3)
+                          & (F.lead("DiasMora", k).over(por_ap) > 30)).cast("int"), F.lit(0))
+              for k in (1, 2, 3)]
+    observado = (mora.withColumn("IncumpleProx3m", F.greatest(*futuro))
+                 .where(F.col("Mes") + 3 <= F.col("UltimoMes"))
+                 .select("AportanteID", "Periodo", "IncumpleProx3m"))
+    decil = Window.partitionBy("ScoreVersion", "Periodo").orderBy(F.col("ProbabilidadIncumplimiento").desc())
+    return (spark.read.table("fact_riesgo")
+            .select("AportanteID", "Periodo", "ScoreVersion", "Muestra", "ProbabilidadIncumplimiento")
+            .join(observado, ["AportanteID", "Periodo"])
+            .withColumn("Decil", F.ntile(10).over(decil))
+            .groupBy("ScoreVersion", "Periodo", "Muestra", "Decil")
+            .agg(F.count("*").alias("Aportantes"),
+                 F.sum("IncumpleProx3m").alias("Incumplen"),
+                 F.avg("ProbabilidadIncumplimiento").alias("ProbabilidadMedia"))
+            .withColumn("TasaReal", F.try_divide(F.col("Incumplen"), F.col("Aportantes"))))

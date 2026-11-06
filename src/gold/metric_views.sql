@@ -180,7 +180,7 @@ $$;
 CREATE OR REPLACE VIEW recaudo_dev.gold.metricas_riesgo
 WITH METRICS
 LANGUAGE YAML
-COMMENT 'Probabilidad de incumplimiento por aportante y mes. ScoreVersion distingue reglas (reglas-v1) y modelos de ML.'
+COMMENT 'Probabilidad de incumplimiento por aportante y mes. Filtra siempre por Version del score: reglas-v1 (reglas, horizonte t+1) o ml-v1 (modelo de ML, mora > 30 días en los próximos 3 meses).'
 AS $$
 version: 1.1
 source: recaudo_dev.gold.fact_riesgo
@@ -195,6 +195,10 @@ dimensions:
     expr: source.NivelRiesgo
   - name: Version del score
     expr: source.ScoreVersion
+    comment: "reglas-v1 o ml-v1. No mezclar versiones en una misma cifra."
+  - name: Muestra
+    expr: source.Muestra
+    comment: "Solo ml-v1: entrenamiento (optimista), validacion, prueba o produccion."
   - name: Regional
     expr: aportante.Regional
   - name: Sector

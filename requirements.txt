@@ -3,3 +3,7 @@ numpy>=1.26
 pyyaml>=6.0
 faker>=30.0
 holidays>=0.60
+# Solo para la etapa de ML (en Databricks se instalan con %pip en los notebooks 05 y 06)
+scikit-learn>=1.4
+lightgbm>=4.0
+mlflow-skinny>=3.1
