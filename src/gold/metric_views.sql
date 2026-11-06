@@ -58,6 +58,9 @@ measures:
   - name: Porcentaje de cumplimiento
     expr: SUM(source.ValorPagado) / NULLIF(SUM(source.ValorEsperado), 0)
     comment: "Valor recaudado / valor esperado."
+  - name: Brecha de recaudo
+    expr: SUM(CASE WHEN source.EsVencido THEN source.ValorEsperado - source.ValorPagado ELSE 0 END)
+    comment: "Valor esperado - valor recaudado, sólo para aportes vencidos."
   - name: Aportes
     expr: COUNT(1)
     comment: "Obligaciones aportante-periodo."
