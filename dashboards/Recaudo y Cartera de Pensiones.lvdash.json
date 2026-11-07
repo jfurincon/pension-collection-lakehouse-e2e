@@ -1,0 +1,2313 @@
+{
+  "datasets": [
+    {
+      "name": "fdb57fab",
+      "displayName": "metricas_cartera",
+      "asset_name": "recaudo_dev.gold.metricas_cartera"
+    },
+    {
+      "name": "4b98718d",
+      "displayName": "metricas_riesgo",
+      "asset_name": "recaudo_dev.gold.metricas_riesgo"
+    },
+    {
+      "name": "bf951b7a",
+      "displayName": "metricas_recaudo",
+      "asset_name": "recaudo_dev.gold.metricas_recaudo"
+    },
+    {
+      "name": "19c132d8",
+      "displayName": "metricas_cobranza",
+      "asset_name": "recaudo_dev.gold.metricas_cobranza"
+    },
+    {
+      "name": "a9311838",
+      "displayName": "Traffic Flow Contributions by Route Segments Summary",
+      "queryLines": [
+        "SELECT concat(OrdenTramoOrigen, '. ', TramoOrigen)   AS Origen,\r\n",
+        "       concat(OrdenTramoDestino, '. ', TramoDestino) AS Destino,\r\n",
+        "       sum(Aportantes) AS Aportantes,\r\n",
+        "       sum(Aportantes) / sum(sum(Aportantes)) OVER (PARTITION BY OrdenTramoOrigen) AS PctFila\r\n",
+        "FROM recaudo_dev.gold.agg_transicion_tramos\r\n",
+        "WHERE PeriodoOrigen BETWEEN '2025-01' AND '2025-11'\r\n",
+        "GROUP BY OrdenTramoOrigen, TramoOrigen, OrdenTramoDestino, TramoDestino"
+      ]
+    },
+    {
+      "name": "d8411e27",
+      "displayName": "Performance Rates by Score Version and Decile Analysis",
+      "queryLines": [
+        "SELECT ScoreVersion,\r\n",
+        "       Decil,\r\n",
+        "       sum(Incumplen) / sum(Aportantes) AS TasaReal\r\n",
+        "FROM recaudo_dev.gold.agg_desempeno_score\r\n",
+        "WHERE Periodo BETWEEN '2025-06' AND '2025-09'   -- periodo de prueba\r\n",
+        "GROUP BY ScoreVersion, Decil"
+      ]
+    },
+    {
+      "name": "bea91c40",
+      "displayName": "Top Fifty Contributors Risk Scores and Economic Sectors",
+      "queryLines": [
+        "SELECT d.AportanteID,\r\n",
+        "       d.RazonSocial,\r\n",
+        "       d.ActividadEconomica             AS Sector,\r\n",
+        "       d.Regional,\r\n",
+        "       s.ProbabilidadIncumplimiento     AS Probabilidad,\r\n",
+        "       s.NivelRiesgo,\r\n",
+        "       array_join(s.Razones, ' · ')     AS Razones\r\n",
+        "FROM recaudo_dev.ml.score_riesgo s\r\n",
+        "JOIN recaudo_dev.ml.features_aportante_mes f\r\n",
+        "  ON f.AportanteID = s.AportanteID AND f.Periodo = s.Periodo\r\n",
+        "JOIN recaudo_dev.gold.dim_aportante d\r\n",
+        "  ON d.AportanteID = s.AportanteID AND d.EsActual\r\n",
+        "WHERE s.Periodo = (SELECT max(Periodo) FROM recaudo_dev.ml.score_riesgo)\r\n",
+        "  AND f.DiasMora = 0\r\n",
+        "ORDER BY s.ProbabilidadIncumplimiento DESC\r\n",
+        "LIMIT 50"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "f80bb0d4",
+      "displayName": "Recaudo",
+      "layout": [
+        {
+          "widget": {
+            "name": "valor-recaudado",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "measure(Valor recaudado)",
+                      "expression": "MEASURE(`Valor recaudado`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Valor Recaudado",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Billones COP",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Valor recaudado)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    },
+                    "significantFigures": {
+                      "type": "all"
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "b9a2b93d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "measure(Porcentaje de cumplimiento)",
+                      "expression": "MEASURE(`Porcentaje de cumplimiento`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de Cumplimiento",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Porcentaje de cumplimiento)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "style": {
+                    "fontSize": 28
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 3,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "e5ec3bc1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "measure(Porcentaje de pago oportuno)",
+                      "expression": "MEASURE(`Porcentaje de pago oportuno`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de Pago Oportuno",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Porcentaje de pago oportuno)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "style": {
+                    "fontSize": 28
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 3,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "dd73cfba",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "measure(Porcentaje de cumplimiento)",
+                      "expression": "MEASURE(`Porcentaje de cumplimiento`)"
+                    },
+                    {
+                      "name": "Sector",
+                      "expression": "`Sector`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Porcentaje de cumplimiento por Sector (%)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Sector",
+                  "axis": {
+                    "labelAngle": 90,
+                    "hideLabels": false
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Porcentaje de cumplimiento)",
+                  "scale": {
+                    "type": "quantitative",
+                    "reverse": false
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "text": {
+                    "fieldName": "measure(Porcentaje de cumplimiento)",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 2,
+            "width": 4,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "porcentaje-pago-oportuno-periodo",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "Periodo",
+                      "expression": "`Periodo`"
+                    },
+                    {
+                      "name": "measure(Porcentaje de pago oportuno)",
+                      "expression": "MEASURE(`Porcentaje de pago oportuno`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de pago oportuno por periodo (%)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "Periodo",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Porcentaje de pago oportuno)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 6,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "ano",
+            "queries": [
+              {
+                "name": "dashboards/01f1da213e07182289cbb59210180fc8/datasets/01f1da216f7e10adaae24560ea17645b_Anio",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "Anio",
+                      "expression": "`Anio`"
+                    },
+                    {
+                      "name": "Anio_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Año",
+                  "fields": []
+                }
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Anio",
+                    "queryName": "dashboards/01f1da213e07182289cbb59210180fc8/datasets/01f1da216f7e10adaae24560ea17645b_Anio"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "4dc912b4",
+            "spec": {
+              "widgetType": "text",
+              "version": 1,
+              "encodings": {
+                "text": {
+                  "lines": [
+                    "# Recaudo de Pensiones\n",
+                    "\n",
+                    "Datos sintéticos 10.000 Aportantes entre 2023-2025. Fuente: Metric views de la capa Gold."
+                  ],
+                  "fields": []
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 0,
+            "width": 10,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "valore-esperado-1",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bf951b7a",
+                  "fields": [
+                    {
+                      "name": "measure(Brecha de recaudo)",
+                      "expression": "MEASURE(`Brecha de recaudo`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Brecha de Recaudo",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Brecha de recaudo)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "style": {
+                    "fontSize": 36
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 3,
+            "width": 2,
+            "height": 3
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "82b709f8",
+      "displayName": "Global Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "5b41a3e1",
+      "displayName": "Cartera",
+      "layout": [
+        {
+          "widget": {
+            "name": "1c46dbaa",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "measure(Saldo vencido total)",
+                      "expression": "MEASURE(`Saldo vencido total`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Saldo Vencido total",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Saldo vencido total)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    },
+                    "significantFigures": {
+                      "type": "all"
+                    }
+                  },
+                  "style": {
+                    "fontSize": 32
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "ed4c9ace",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "measure(Porcentaje de aportantes en mora)",
+                      "expression": "MEASURE(`Porcentaje de aportantes en mora`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de aportantes en mora",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Porcentaje de aportantes en mora)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "style": {
+                    "fontSize": 28
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "b789f0eb",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "measure(Porcentaje de saldo mayor a 90 dias)",
+                      "expression": "MEASURE(`Porcentaje de saldo mayor a 90 dias`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de saldo mayor a 90 dias",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Porcentaje de saldo mayor a 90 dias)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "style": {
+                    "fontSize": 28
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e81b6c15",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "Periodo",
+                      "expression": "`Periodo`"
+                    },
+                    {
+                      "name": "measure(Porcentaje de aportantes en mora)",
+                      "expression": "MEASURE(`Porcentaje de aportantes en mora`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Porcentaje de aportantes en mora por periodo",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "Periodo",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Porcentaje de aportantes en mora)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "display": {
+                    "type": "y-min-and-max"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 4,
+            "width": 5,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "ce366912",
+            "spec": {
+              "widgetType": "text",
+              "version": 1,
+              "encodings": {
+                "text": {
+                  "lines": [
+                    "# Cartera de Pensiones\n",
+                    "\n",
+                    "Datos sintéticos 10.000 Aportantes entre 2023-2025. Fuente: Metric views de la capa Gold."
+                  ],
+                  "fields": []
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 0,
+            "width": 10,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "9d412d3a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "measure(Dias de mora promedio)",
+                      "expression": "MEASURE(`Dias de mora promedio`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Dias de mora promedio",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Dias de mora promedio)",
+                  "style": {
+                    "fontSize": 36
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    },
+                    "significantFigures": {
+                      "type": "exact",
+                      "figures": 3
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "saldo-vencido-total-por-periodo",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "fdb57fab",
+                  "fields": [
+                    {
+                      "name": "Tramo de mora",
+                      "expression": "`Tramo de mora`"
+                    },
+                    {
+                      "name": "Periodo",
+                      "expression": "`Periodo`"
+                    },
+                    {
+                      "name": "measure(Saldo vencido total)",
+                      "expression": "MEASURE(`Saldo vencido total`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Saldo vencido total por periodo",
+                  "fields": []
+                },
+                "description": {
+                  "value": "En color tramo de mora",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Periodo",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Saldo vencido total)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "Tramo de mora",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "1-30",
+                        "color": "#637DCE"
+                      },
+                      {
+                        "value": "31-60",
+                        "color": "#4E68A3"
+                      },
+                      {
+                        "value": "61-90",
+                        "color": "#3194B3"
+                      },
+                      {
+                        "value": "Sin Mora",
+                        "color": "#0057FF"
+                      }
+                    ]
+                  }
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 5,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "roll-rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "a9311838",
+                  "fields": [
+                    {
+                      "name": "PctFila",
+                      "expression": "`PctFila`"
+                    },
+                    {
+                      "name": "Destino",
+                      "expression": "`Destino`"
+                    },
+                    {
+                      "name": "Origen",
+                      "expression": "`Origen`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Roll rate (%)",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "Destino",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "Origen",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "PctFila",
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "scheme",
+                      "scheme": "blues"
+                    }
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "text": {
+                    "fieldName": "PctFila",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 11,
+            "width": 10,
+            "height": 8
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "83c1c443",
+      "displayName": "Cobranza",
+      "layout": [
+        {
+          "widget": {
+            "name": "bd789046",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Gestiones)",
+                      "expression": "MEASURE(`Gestiones`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Numero de Gestiones",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Gestiones)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "5e227b20",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Tasa de contacto)",
+                      "expression": "MEASURE(`Tasa de contacto`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Tasa de contacto",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Tasa de contacto)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "ee8d8e35",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Tasa de exito)",
+                      "expression": "MEASURE(`Tasa de exito`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Tasa de exito",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Tasa de exito)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "c4c53175",
+            "spec": {
+              "widgetType": "text",
+              "version": 1,
+              "encodings": {
+                "text": {
+                  "lines": [
+                    "# Cobranza\n",
+                    "\n",
+                    "Datos sintéticos 10.000 Aportantes entre 2023-2025. Fuente: Metric views de la capa Gold."
+                  ],
+                  "fields": []
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 0,
+            "width": 10,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "fd5eb6ac",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    },
+                    {
+                      "name": "Tipo de gestion",
+                      "expression": "`Tipo de gestion`"
+                    },
+                    {
+                      "name": "Tramo de mora al gestionar",
+                      "expression": "`Tramo de mora al gestionar`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Canal usado por tramo de mora",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "Tipo de gestion",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "Tramo de mora al gestionar",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "text": {
+                    "fieldName": "count(*)",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 10,
+            "width": 5,
+            "height": 7
+          }
+        },
+        {
+          "widget": {
+            "name": "bf6747d8",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Acuerdos firmados)",
+                      "expression": "MEASURE(`Acuerdos firmados`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Numero de acuerdos firmados",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Acuerdos firmados)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "174472bc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Tasa de exito)",
+                      "expression": "MEASURE(`Tasa de exito`)"
+                    },
+                    {
+                      "name": "Tipo de gestion",
+                      "expression": "`Tipo de gestion`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Tasa de éxito por tipo de gestión",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "measure(Tasa de exito)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "Tipo de gestion",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 4,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "1e5ba346",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "Tipo de gestion",
+                      "expression": "`Tipo de gestion`"
+                    },
+                    {
+                      "name": "Periodo",
+                      "expression": "`Periodo`"
+                    },
+                    {
+                      "name": "measure(Gestiones)",
+                      "expression": "MEASURE(`Gestiones`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Numero de gestiones por periodo",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "Periodo",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Gestiones)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "Tipo de gestion",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 17,
+            "width": 10,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "gestores",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "Gestor",
+                      "expression": "`Gestor`"
+                    },
+                    {
+                      "name": "measure(Gestiones)",
+                      "expression": "MEASURE(`Gestiones`)"
+                    },
+                    {
+                      "name": "measure(Tasa de contacto)",
+                      "expression": "MEASURE(`Tasa de contacto`)"
+                    },
+                    {
+                      "name": "measure(Tasa de exito)",
+                      "expression": "MEASURE(`Tasa de exito`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Gestores",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Gestor"
+                  },
+                  {
+                    "fieldName": "measure(Gestiones)",
+                    "format": {
+                      "type": "number-plain",
+                      "abbreviation": "none",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 0
+                      },
+                      "hideGroupSeparator": true
+                    }
+                  },
+                  {
+                    "fieldName": "measure(Tasa de contacto)",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      },
+                      "hideGroupSeparator": true
+                    }
+                  },
+                  {
+                    "fieldName": "measure(Tasa de exito)",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "exact",
+                        "places": 2
+                      },
+                      "hideGroupSeparator": true
+                    }
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 2,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "a23712ef",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "19c132d8",
+                  "fields": [
+                    {
+                      "name": "measure(Tasa de exito)",
+                      "expression": "MEASURE(`Tasa de exito`)"
+                    },
+                    {
+                      "name": "Tipo de gestion",
+                      "expression": "`Tipo de gestion`"
+                    },
+                    {
+                      "name": "Tramo de mora al gestionar",
+                      "expression": "`Tramo de mora al gestionar`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Tasa de éxito por canal usado en tramo de mora",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "Tipo de gestion",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "Tramo de mora al gestionar",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure(Tasa de exito)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "text": {
+                    "fieldName": "measure(Tasa de exito)",
+                    "format": {
+                      "type": "number-percent",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 10,
+            "width": 5,
+            "height": 7
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "6198fb3d",
+      "displayName": "Riesgo",
+      "layout": [
+        {
+          "widget": {
+            "name": "caa950a2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "measure(Aportantes evaluados)",
+                      "expression": "MEASURE(`Aportantes evaluados`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Aportantes evaluados",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Aportantes evaluados)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "888e1b86",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "measure(Aportantes riesgo alto o critico)",
+                      "expression": "MEASURE(`Aportantes riesgo alto o critico`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Aportantes riesgo alto-critico",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Aportantes riesgo alto o critico)"
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "61ba7246",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "measure(Probabilidad promedio)",
+                      "expression": "MEASURE(`Probabilidad promedio`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Probabilidad promedio",
+                  "fields": []
+                }
+              },
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Probabilidad promedio)",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "febb6742",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "measure(Probabilidad promedio)",
+                      "expression": "MEASURE(`Probabilidad promedio`)"
+                    },
+                    {
+                      "name": "Sector",
+                      "expression": "`Sector`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "value": "Probabilidad promedio por sector",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "measure(Probabilidad promedio)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "Sector",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true,
+                  "display": {
+                    "type": "y-min-and-max"
+                  }
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 4,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "5aebbb04",
+            "spec": {
+              "widgetType": "text",
+              "version": 1,
+              "encodings": {
+                "text": {
+                  "lines": [
+                    "# Riesgo\n",
+                    "\n",
+                    "Datos sintéticos 10.000 Aportantes entre 2023-2025. Fuente: Metric views de la capa Gold."
+                  ],
+                  "fields": []
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 0,
+            "width": 10,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "61e4114c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "Nivel de riesgo",
+                      "expression": "`Nivel de riesgo`"
+                    },
+                    {
+                      "name": "measure(Aportantes evaluados)",
+                      "expression": "MEASURE(`Aportantes evaluados`)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`Periodo` IN ('2025-12')"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": false,
+                "title": {
+                  "value": "Aportantes evaluados y su nivel de riesgo",
+                  "fields": []
+                },
+                "description": {
+                  "value": "En color tramo de mora",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Nivel de riesgo",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "Bajo",
+                        "Medio",
+                        "Alto",
+                        "Critico"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Aportantes evaluados)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 7,
+            "y": 2,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "comportamiento-modelo-tasa-real-incumplimiento-decil",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "d8411e27",
+                  "fields": [
+                    {
+                      "name": "ScoreVersion",
+                      "expression": "`ScoreVersion`"
+                    },
+                    {
+                      "name": "Decil",
+                      "expression": "`Decil`"
+                    },
+                    {
+                      "name": "TasaReal",
+                      "expression": "`TasaReal`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "frame": {
+                "showTitle": true,
+                "showDescription": true,
+                "title": {
+                  "value": "Comportamiento del modelo - Tasa real de incumplimiento por decil",
+                  "fields": []
+                },
+                "description": {
+                  "value": "Periodo de prueba (JUN-SEP 2025) - Decil 1 es el más riesgoso",
+                  "fields": []
+                }
+              },
+              "version": 3,
+              "mark": {
+                "layout": "group"
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Decil",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "TasaReal",
+                  "format": {
+                    "type": "number-percent",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  },
+                  "axis": {
+                    "title": "Tasa real de incumplimiento"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "ScoreVersion",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "reglas-v1",
+                        "color": "#ACACAC"
+                      }
+                    ]
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 11,
+            "width": 10,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "de4b610b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "bea91c40",
+                  "fields": [
+                    {
+                      "name": "AportanteID",
+                      "expression": "`AportanteID`"
+                    },
+                    {
+                      "name": "Probabilidad",
+                      "expression": "`Probabilidad`"
+                    },
+                    {
+                      "name": "Razones",
+                      "expression": "`Razones`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "AportanteID"
+                  },
+                  {
+                    "fieldName": "Probabilidad"
+                  },
+                  {
+                    "fieldName": "Razones"
+                  }
+                ]
+              },
+              "data": {
+                "queryName": "main_query"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 17,
+            "width": 10,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "ada10492",
+            "queries": [
+              {
+                "name": "dashboards/01f1da213e07182289cbb59210180fc8/datasets/01f1da216f471780bdf4cbf95c13956d_Version del score",
+                "query": {
+                  "datasetName": "4b98718d",
+                  "fields": [
+                    {
+                      "name": "Version del score",
+                      "expression": "`Version del score`"
+                    },
+                    {
+                      "name": "Version del score_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "showTitle": true
+              },
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Version del score",
+                    "queryName": "dashboards/01f1da213e07182289cbb59210180fc8/datasets/01f1da216f471780bdf4cbf95c13956d_Version del score"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 10,
+            "width": 10,
+            "height": 1
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#F0F0F0",
+        "dark": "#121317"
+      },
+      "widgetBackgroundColor": {
+        "light": "#F0F0F0",
+        "dark": "#121317"
+      },
+      "widgetBorderColor": {
+        "light": "#171717",
+        "dark": "#9D9DA0"
+      },
+      "fontColor": {
+        "light": "#404040",
+        "dark": "#F7F5F2"
+      },
+      "selectionColor": {
+        "light": "#0061FE",
+        "dark": "#5A9FFF"
+      },
+      "visualizationColors": [
+        "#377EB8",
+        "#4DAF4A",
+        "#984EA3",
+        "#FF7F00",
+        "#FFFF33",
+        "#A65628",
+        "#F781BF"
+      ],
+      "widgetHeaderAlignment": "LEFT",
+      "fontFamily": "Roboto Mono",
+      "widgetPadding": 16,
+      "widgetMargin": 0,
+      "widgetCornerRadius": 0,
+      "widgetShadow": 0,
+      "continuousGradient": {
+        "lightMode": {
+          "fromCategoricalIndex": 0
+        },
+        "darkMode": {
+          "fromCategoricalIndex": 0
+        }
+      },
+      "fontSettings": {
+        "base": {
+          "fontFamily": "Roboto Mono",
+          "fontColor": {
+            "light": "#404040",
+            "dark": "#F7F5F2"
+          },
+          "fontSize": 13,
+          "fontWeight": 400
+        },
+        "widgetTitle": {
+          "fontSize": 15,
+          "fontWeight": 500
+        },
+        "widgetDescription": {
+          "fontSize": 13,
+          "fontWeight": 400
+        },
+        "fieldTitle": {
+          "textCase": "TEXT_CASE_UPPERCASE",
+          "fontColor": {
+            "light": "#535353",
+            "dark": "#DEDDDA"
+          },
+          "fontSize": 12,
+          "fontWeight": 400
+        },
+        "fieldValue": {
+          "fontColor": {
+            "light": "#535353",
+            "dark": "#DEDDDA"
+          },
+          "fontSize": 12,
+          "fontWeight": 400
+        }
+      },
+      "gridLineColor": {
+        "light": "#D1D1D1",
+        "dark": "#3B3B3E"
+      },
+      "axisLineColor": {
+        "light": "#C1C1C1",
+        "dark": "#4F5052"
+      }
+    },
+    "applyModeEnabled": false
+  }
+}
