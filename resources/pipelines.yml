@@ -1,0 +1,27 @@
+# Pipelines declarativas de Silver y Gold. Reemplazan a las que se crearon a mano
+# en la interfaz: mismo código, misma configuración, ahora versionada.
+resources:
+  pipelines:
+    silver_recaudo:
+      name: silver_recaudo
+      catalog: ${var.catalogo}
+      schema: silver
+      serverless: true
+      root_path: ../src/silver
+      libraries:
+        - file:
+            path: ../src/silver/silver_pipeline.py
+      configuration:
+        catalogo: ${var.catalogo}
+
+    gold_recaudo:
+      name: gold_recaudo
+      catalog: ${var.catalogo}
+      schema: gold
+      serverless: true
+      root_path: ../src/gold
+      libraries:
+        - file:
+            path: ../src/gold/gold_pipeline.py
+      configuration:
+        catalogo: ${var.catalogo}

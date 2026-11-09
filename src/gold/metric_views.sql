@@ -60,7 +60,7 @@ measures:
     comment: "Valor recaudado / valor esperado."
   - name: Brecha de recaudo
     expr: SUM(CASE WHEN source.EsVencido THEN source.ValorEsperado - source.ValorPagado ELSE 0 END)
-    comment: "Valor esperado - valor recaudado, sólo para aportes vencidos."
+    comment: "Lo que falta por recaudar de los aportes ya vencidos (COP). Excluye periodos que aún no vencen."
   - name: Aportes
     expr: COUNT(1)
     comment: "Obligaciones aportante-periodo."

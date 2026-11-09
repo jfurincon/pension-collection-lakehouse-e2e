@@ -1,0 +1,43 @@
+# =============================================================================
+# Bundle del proyecto: define como código las pipelines y los jobs.
+#
+# Un bundle (Declarative Automation Bundle, antes Databricks Asset Bundle) es la
+# "receta" de los recursos de Databricks del proyecto. En vez de crear pipelines
+# y jobs a mano en la interfaz, se describen aquí y Databricks los crea o los
+# actualiza al desplegar. Así la configuración queda en Git, con historial, y un
+# ambiente nuevo se levanta igual que el anterior.
+#
+# Desplegar desde el workspace: abrir este archivo en el Git folder → Deploy.
+# Desplegar desde una terminal: databricks bundle deploy -t dev
+# =============================================================================
+bundle:
+  name: pension_collection_lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalogo:
+    description: Catálogo de Unity Catalog donde vive cada ambiente
+    default: recaudo_dev
+
+targets:
+  # Desarrollo: cada recurso lleva el prefijo "[dev <usuario>]", las pipelines
+  # corren en modo desarrollo y los horarios quedan en pausa.
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalogo: recaudo_dev
+
+  # Producción: otro catálogo, nombres sin prefijo. Se levanta desde cero con
+  # el job recaudo_inicializacion.
+  prod:
+    mode: production
+    variables:
+      catalogo: recaudo_prod
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE

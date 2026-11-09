@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # 02 · Silver: verificación
 # MAGIC
-# MAGIC Corre este notebook **después** de ejecutar el pipeline `silver_recaudo`. Comprueba tres cosas:
+# MAGIC Corre este notebook **después** de ejecutar el pipeline `silver_recaudo`. En el job mensual es una **compuerta de calidad**: si el cuadre falla, el notebook falla y el job se detiene. Comprueba tres cosas:
 # MAGIC 1. **Cuadre:** cada fila de Bronze terminó en Silver o en cuarentena. La única diferencia permitida son los pagos duplicados, que se descartan a propósito.
 # MAGIC 2. **Cuarentena:** qué reglas fallaron y cuántas veces. Deben ser exactamente los errores que el generador inyectó.
 # MAGIC 3. **Historial de aportantes (SCD tipo 2):** que las empresas trasladadas o inactivadas tengan varias versiones.
@@ -47,7 +47,10 @@ duplicados = spark.sql(f"""
 dif_pago = [f for f in filas if f[0] == "pago"][0][4]
 otras = [f for f in filas if f[0] != "pago" and f[4] != 0]
 print(f"Duplicados de PagoID en Bronze: {duplicados:,} | diferencia en pago: {dif_pago:,}")
-print("CUADRE OK" if duplicados == dif_pago and not otras else f"REVISAR: {otras}")
+# Compuerta de calidad: si no cuadra, el notebook falla y el job se detiene aquí,
+# antes de que Gold y el modelo usen datos incompletos.
+assert duplicados == dif_pago and not otras, f"CUADRE FALLIDO: duplicados={duplicados}, dif_pago={dif_pago}, otras={otras}"
+print("CUADRE OK")
 
 # COMMAND ----------
 

@@ -1,12 +1,8 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "6"
-# ///
 # MAGIC %md
 # MAGIC # 03 · Gold: verificación
 # MAGIC
-# MAGIC Corre este notebook después del pipeline `gold_recaudo` y de crear las metric views. Comprueba:
+# MAGIC Corre este notebook después del pipeline `gold_recaudo` y de crear las metric views. En el job mensual es una **compuerta de calidad**: si alguna prueba falla, el notebook falla y el job se detiene. Comprueba:
 # MAGIC 1. **Ninguna fila se pierde** al unir cada hecho con la versión del aportante (SCD2).
 # MAGIC 2. **Integridad del modelo estrella:** llaves sustitutas únicas y todas las llaves de los hechos existen en sus dimensiones.
 # MAGIC 3. **Los KPIs tienen sentido** y las metric views responden igual que las tablas.
@@ -38,6 +34,9 @@ for s, g in HECHOS.items():
     ng = gold.count()
     filas.append((g, ns, ng, "OK" if ns == ng else "REVISAR"))
 display(spark.createDataFrame(filas, "tabla string, filas_silver long, filas_gold long, estado string"))
+# Compuerta de calidad: en un job, cualquier diferencia detiene la ejecución.
+revisar = [f[0] for f in filas if f[3] != "OK"]
+assert not revisar, f"Silver y Gold no cuadran en: {revisar}"
 
 # COMMAND ----------
 
@@ -69,7 +68,9 @@ SELECT 'fact_acuerdo_cuota: vencimiento sin dim_tiempo',
        count(*) FROM {C}.gold.fact_acuerdo_cuota f LEFT ANTI JOIN {C}.gold.dim_tiempo t ON f.FechaVencimientoKey = t.FechaKey
 """)
 display(checks)
-print("INTEGRIDAD OK" if checks.where("problemas <> 0").count() == 0 else "REVISAR las pruebas con problemas")
+fallidas = [r["prueba"] for r in checks.where("problemas <> 0").collect()]
+assert not fallidas, f"Pruebas de integridad con problemas: {fallidas}"
+print("INTEGRIDAD OK")
 
 # COMMAND ----------
 
@@ -151,4 +152,6 @@ FROM {C}.gold.agg_indicadores_mensuales a JOIN desde_metricas m USING (Periodo)
 ORDER BY a.Periodo
 """)
 display(comparacion)
-print("METRIC VIEWS OK" if comparacion.where("desde_tabla <> desde_metric_view").count() == 0 else "REVISAR")
+distintas = comparacion.where("desde_tabla <> desde_metric_view").count()
+assert distintas == 0, f"{distintas} periodos donde la metric view no coincide con la tabla"
+print("METRIC VIEWS OK")

@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "6"
-# ///
 # MAGIC %md
 # MAGIC # 05 · ML: entrenamiento y comparación
 # MAGIC
@@ -172,17 +168,31 @@ display(comparacion)
 # MAGIC ## Elegir y registrar el campeón
 # MAGIC
 # MAGIC El ganador se elige solo con **validación** (AUC-PR). Si se eligiera con prueba, la prueba dejaría de ser una medida honesta del desempeño futuro.
+# MAGIC
+# MAGIC **Compuerta de promoción.** Cuando este notebook corre dentro del job mensual, nadie revisa el resultado antes de usarlo. Por eso el modelo nuevo solo reemplaza al `champion` actual si su AUC-PR en validación no es peor (con una tolerancia de 0,005). Si es peor, el modelo se registra como versión nueva, pero el alias sigue apuntando al anterior y el scoring no cambia.
 
 # COMMAND ----------
 
+TOLERANCIA = 0.005
 candidatos = {k: v for k, v in resultados.items() if v["model_uri"]}
 campeon = max(candidatos, key=lambda k: candidatos[k]["val_todos_auc_pr"])
 r = candidatos[campeon]
-print(f"Campeón: {campeon} · AUC-PR validación {r['val_todos_auc_pr']:.3f} · "
+print(f"Mejor candidato: {campeon} · AUC-PR validación {r['val_todos_auc_pr']:.3f} · "
       f"AUC-ROC prueba {r['test_todos_auc_roc']:.3f} (reglas: {resultados['reglas-v1']['test_todos_auc_roc']:.3f})")
 
-version = mlflow.register_model(r["model_uri"], MODELO)
 cliente = MlflowClient()
+try:
+    actual = cliente.get_model_version_by_alias(MODELO, "champion")
+    auc_pr_actual = cliente.get_run(actual.run_id).data.metrics.get("val_todos_auc_pr")
+except Exception:   # primera vez: todavía no hay champion
+    actual, auc_pr_actual = None, None
+
+version = mlflow.register_model(r["model_uri"], MODELO)
+promover = auc_pr_actual is None or r["val_todos_auc_pr"] >= auc_pr_actual - TOLERANCIA
+if not promover:
+    print(f"NO se promueve: AUC-PR {r['val_todos_auc_pr']:.3f} < champion actual "
+          f"(versión {actual.version}) {auc_pr_actual:.3f}. Versión {version.version} registrada sin alias.")
+    dbutils.notebook.exit(f"sin_promocion:{version.version}")
 cliente.set_registered_model_alias(MODELO, "champion", version.version)
 cliente.update_model_version(
     MODELO, version.version,

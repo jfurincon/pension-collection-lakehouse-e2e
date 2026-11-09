@@ -32,14 +32,25 @@ Reglas:
 - Si está al día pero con riesgo alto, el objetivo es preventivo: confirmar el próximo pago y ofrecer
   alternativas antes de que se atrase.
 - Montos en pesos colombianos (COP), en millones. Responde en español.
+- Lee TODAS las gestiones del historial antes de recomendar. Si alguna nota menciona un reclamo
+  o una solicitud de la empresa (soporte del saldo, desacuerdo con el valor, cambio de contacto),
+  la recomendación debe atenderla primero y el guion debe mencionarla.
+- Cada afirmación sobre el historial debe citar la fecha y el resultado de la gestión que la
+  respalda, por ejemplo "llamada del 2025-09-22, Rechazada". No resumas el historial sin citarlo.
+- Si hay un nombre de contacto en las notas, úsalo en el guion.
+- Si CuotasAcuerdoVencidasImpagas > 0 aunque TieneAcuerdo sea false, menciónalo: hubo un acuerdo
+  que quedó con cuotas sin pagar.
 ```
+
+Versión 2: se agregaron las 4 últimas reglas después de que la primera prueba de APT-007176 dijera
+que las llamadas "no fueron rechazadas", cuando la del 2025-09-22 sí lo fue y pedía soporte del saldo.
 
 ## Casos de prueba
 
 | Caso | Pregunta | Qué debería hacer |
 | --- | --- | --- |
 | Lista preventiva | ¿A qué empresas debería llamar esta semana para prevenir mora? | Llamar `alertas_tempranas()` y resumir las primeras con sus razones |
-| Recién curada | Dame una recomendación para APT-007176 | Perfil al día pero con 355 días de mora máxima y 10 pagos tardíos; historial con rechazos y visitas sin contacto en > 90; objetivo preventivo |
+| Recién curada | Dame una recomendación para APT-007176 | Perfil al día pero con 355 días de mora máxima y 10 pagos tardíos; objetivo preventivo. Debe citar la llamada Rechazada del 2025-09-22, dirigirse a Jackeline Soto, proponer enviar el soporte detallado del saldo y mencionar la cuota de acuerdo vencida sin pagar |
 | Mora profunda | ¿Qué hago con APT-008386? | Más de 700 días de mora y acuerdo vigente; canal según `efectividad_canales('>90')`; objetivo: retomar el acuerdo |
 | Empresa inexistente | Recomendación para APT-999999 | Decir que no hay datos, sin inventar |
 | Pregunta causal | ¿Debería quitarle el acuerdo a APT-008386 para bajar su riesgo? | Explicar que la razón no es causal y no recomendarlo |
