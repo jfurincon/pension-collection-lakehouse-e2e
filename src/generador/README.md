@@ -45,3 +45,6 @@ generar("config/parametros.yaml", "/lakehouse/default/Files/raw")       # Fabric
 5. **Calentamiento.** La simulación arranca 12 meses antes (2022) para que la cartera de enero de 2023 no empiece en cero. Por eso `FactPagos` incluye pagos de periodos de 2022: es cartera heredada y no tiene fila en `FactAportes`.
 
 Todos los parámetros están en `config/parametros.yaml`, con la misma semilla el resultado es idéntico. El contrato de columnas está en la pestaña *Diccionario de datos* del plan del proyecto.
+
+--------Test---------
+Prueba CI **Hola Mundo**
