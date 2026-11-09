@@ -18,8 +18,15 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from pyspark.sql import Window
-from pyspark.sql import functions as F
+
+# Spark solo se necesita para construir_features (corre en Databricks). Sin Spark
+# (pruebas en GitHub Actions, o el ambiente limpio donde se carga el modelo
+# registrado, que lleva este archivo empaquetado) el resto del módulo funciona.
+try:
+    from pyspark.sql import Window
+    from pyspark.sql import functions as F
+except ImportError:
+    Window = F = None
 
 # -----------------------------------------------------------------------------
 # Definiciones
