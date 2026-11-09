@@ -50,16 +50,23 @@ jobs:
     needs: pruebas
     runs-on: ubuntu-latest
     env:
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      # El host puede guardarse como secreto o como variable del repositorio.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST || vars.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
       - name: Validar dev y prod
         run: |
-          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
-            echo "::warning::Faltan los secretos DATABRICKS_HOST y DATABRICKS_TOKEN: se omite la validación en línea."
+          # Sin ninguno de los dos (por ejemplo, en un fork): avisa y sigue.
+          if [ -z "$DATABRICKS_TOKEN" ] && [ -z "$DATABRICKS_HOST" ]; then
+            echo "::warning::No hay DATABRICKS_HOST ni DATABRICKS_TOKEN: se omite la validación en línea."
             exit 0
+          fi
+          # Con solo uno de los dos, la configuración está incompleta: falla.
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::error::Configuración incompleta: falta DATABRICKS_HOST o DATABRICKS_TOKEN en Settings → Secrets and variables → Actions."
+            exit 1
           fi
           databricks bundle validate -t dev
           databricks bundle validate -t prod
@@ -73,11 +80,19 @@ jobs:
     # antes de desplegar (Settings → Environments → Required reviewers).
     environment: produccion
     env:
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      # El host puede guardarse como secreto o como variable del repositorio.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST || vars.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
+      - name: Revisar credenciales
+        run: |
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::error::Falta DATABRICKS_HOST o DATABRICKS_TOKEN: no se puede desplegar."
+            exit 1
+          fi
+          echo "Desplegando en ${DATABRICKS_HOST}"
       - name: Desplegar el bundle en prod
         run: databricks bundle deploy -t prod
       - name: Resumen
