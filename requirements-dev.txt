@@ -1,0 +1,4 @@
+# Dependencias para las pruebas (pytest) y la validación del bundle sin conexión.
+-r requirements.txt
+pytest>=8.0
+databricks-bundles>=1.24  # probado con 1.24.0

@@ -1,0 +1,84 @@
+# =============================================================================
+# CI/CD del proyecto con GitHub Actions.
+#
+# CI (integración continua), en cada pull request y en cada push a main:
+#   1. pruebas:          pytest (generador al 10%, monitoreo, reglas del modelo,
+#                        separador de SQL y bundle sin conexión).
+#   2. validar_bundle:   "databricks bundle validate" contra el workspace real,
+#                        para dev y prod. Requiere los secretos DATABRICKS_HOST
+#                        y DATABRICKS_TOKEN; si no existen, avisa y no falla.
+#
+# CD (despliegue continuo), al crear un tag v* o a mano (Run workflow):
+#   3. desplegar_prod:   "databricks bundle deploy -t prod". Crea o actualiza las
+#                        pipelines y los jobs de producción. No los ejecuta.
+# =============================================================================
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Un solo despliegue a la vez por rama o tag.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pruebas:
+    name: Pruebas (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+      - name: Correr pruebas
+        run: pytest -q
+
+  validar_bundle:
+    name: Validar bundle en Databricks
+    needs: pruebas
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - name: Validar dev y prod
+        run: |
+          if [ -z "$DATABRICKS_TOKEN" ] || [ -z "$DATABRICKS_HOST" ]; then
+            echo "::warning::Faltan los secretos DATABRICKS_HOST y DATABRICKS_TOKEN: se omite la validación en línea."
+            exit 0
+          fi
+          databricks bundle validate -t dev
+          databricks bundle validate -t prod
+
+  desplegar_prod:
+    name: Desplegar a producción
+    needs: validar_bundle
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # El ambiente "produccion" de GitHub permite exigir una aprobación manual
+    # antes de desplegar (Settings → Environments → Required reviewers).
+    environment: produccion
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - name: Desplegar el bundle en prod
+        run: databricks bundle deploy -t prod
+      - name: Resumen
+        run: databricks bundle summary -t prod
