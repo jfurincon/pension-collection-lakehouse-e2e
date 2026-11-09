@@ -12,6 +12,10 @@ resources:
         Ingesta Bronze, pipelines Silver y Gold, compuertas de calidad, features,
         reentrenamiento opcional, scoring ml-v1, metric views y herramientas del agente.
       max_concurrent_runs: 1
+      # Correo a quien despliega el bundle si alguna tarea falla (compuertas o monitoreo).
+      email_notifications:
+        on_failure:
+          - ${workspace.current_user.userName}
       parameters:
         - name: reentrenar
           default: "false"
@@ -77,6 +81,17 @@ resources:
           notebook_task:
             notebook_path: ../notebooks/06_ml_scoring.py
             base_parameters: {catalogo: "${var.catalogo}"}
+
+        # Revisa desempeño y estabilidad del modelo. Una ALERTA hace fallar la
+        # tarea (y llega el correo de falla); VIGILAR no detiene nada.
+        - task_key: monitoreo
+          depends_on: [{task_key: scoring}]
+          notebook_task:
+            notebook_path: ../notebooks/08_monitoreo.py
+            base_parameters:
+              catalogo: ${var.catalogo}
+              fallar_si_alerta: "si"
+              simular_deriva: "no"
 
         - task_key: gold_con_scores
           depends_on: [{task_key: scoring}]
